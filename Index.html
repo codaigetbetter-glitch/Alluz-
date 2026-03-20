@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Alluz — Brand Intelligence</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.21.4/babel.min.js"></script>
+  <style>
+    :root {
+      --blue: #1a7fe8; --blue-light: #38b6ff; --bg: #f0f6ff;
+      --white: #ffffff; --border: #dce8f5; --text: #1a2a3a; --muted: #8899aa;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+    .app { padding: 16px; max-width: 540px; margin: auto; padding-bottom: 40px; }
+
+    /* CLAUDE-STYLE HEADER */
+    .header { display: flex; justify-content: space-between; align-items: center; padding-bottom: 14px; margin-bottom: 18px; border-bottom: 1px solid var(--border); }
+    .logo-wrap { display: flex; align-items: center; gap: 10px; }
+    .logo-mark { background: #000; color: #fff; width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; border-radius: 8px; font-weight: 900; font-size: 18px; }
+    .logo-text { font-weight: 900; letter-spacing: 2px; font-size: 16px; }
+
+    /* MENU SHEET SKELETON */
+    .nav { display: flex; gap: 8px; margin-bottom: 20px; }
+    .nav-btn { flex: 1; padding: 12px; font-size: 11px; font-weight: 800; border: 1px solid var(--border); background: #fff; border-radius: 10px; cursor: pointer; text-transform: uppercase; color: var(--muted); }
+    .nav-btn.active { background: #000; color: #fff; border-color: #000; }
+
+    /* CARDS & INPUT */
+    .card { background: var(--white); border: 1px solid var(--border); border-radius: 16px; padding: 20px; margin-bottom: 16px; box-shadow: 0 4px 12px rgba(0,0,0,0.03); }
+    .label { font-size: 10px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 12px; display: block; }
+    
+    .input-group { background: #fff; border: 1px solid var(--border); border-radius: 16px; padding: 8px; display: flex; flex-direction: column; gap: 8px; box-shadow: 0 8px 24px rgba(26,127,232,0.1); }
+    textarea { width: 100%; border: none; padding: 12px; font-size: 16px; outline: none; background: transparent; resize: none; min-height: 100px; font-family: inherit; }
+    .run-btn { background: #000; color: #fff; border: none; padding: 14px; border-radius: 12px; font-weight: 800; cursor: pointer; transition: 0.2s; width: 100%; }
+    .run-btn:disabled { background: var(--border); color: var(--muted); }
+
+    .content { line-height: 1.6; font-size: 15px; white-space: pre-wrap; color: #334155; }
+    .q-bubble { font-size: 11px; font-weight: 700; color: var(--blue); margin-bottom: 8px; }
+    
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .animate { animation: fadeIn 0.4s ease forwards; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script type="text/babel">
+    const { useState, useEffect } = React;
+
+    const SYSTEM = `You are Alluz, an Elite Creative Director. 
+    Focus on High-End Streetwear (Rue Porter, LA Apparel). 
+    Strategy must be mechanical, physical, and focused on production math. 
+    Standard locale: US. No AI slop. Never use '*' or '#'.`;
+
+    function App() {
+      const [tab, setTab] = useState("chat");
+      const [input, setInput] = useState("");
+      const [key, setKey] = useState(localStorage.getItem('alluz_key') || "");
+      const [history, setHistory] = useState(() => JSON.parse(localStorage.getItem('alluz_mem')) || []);
+      const [loading, setLoading] = useState(false);
+
+      useEffect(() => { localStorage.setItem('alluz_mem', JSON.stringify(history)); }, [history]);
+
+      const run = async () => {
+        if (!key) return alert("Director: Sync your API Key in Settings.");
+        if (!input.trim()) return;
+        setLoading(true);
+        try {
+          const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${key}`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ contents: [{ parts: [{ text: SYSTEM + "\n\nQuery: " + input }] }] })
+          });
+          const data = await res.json();
+          const raw = data.candidates[0].content.parts[0].text.replace(/[*#]/g, '');
+          setHistory([{ q: input, a: raw }, ...history]);
+          setInput("");
+        } catch (e) { alert("Error: " + e.message); }
+        setLoading(false);
+      };
+
+      return (
+        <div className="app">
+          <header className="header">
+            <div className="logo-wrap">
+              <div className="logo-mark">A</div>
+              <div className="logo-text">ALLUZ</div>
+            </div>
+            <div style={{fontSize: '10px', fontWeight: 800, color: 'var(--blue)'}}>INTELLIGENCE</div>
+          </header>
+
+          <nav className="nav">
+            <button className={`nav-btn ${tab === 'chat' ? 'active' : ''}`} onClick={() => setTab('chat')}>Strategy</button>
+            <button className={`nav-btn ${tab === 'settings' ? 'active' : ''}`} onClick={() => setTab('settings')}>Settings</button>
+          </nav>
+
+          {tab === "chat" ? (
+            <div className="animate">
+              <div className="card">
+                <span className="label">Brand Brief</span>
+                <div className="input-group">
+                  <textarea value={input} onChange={e => setInput(e.target.value)} placeholder="What's the next move, Director?" />
+                  <button className="run-btn" onClick={run} disabled={loading}>{loading ? "PROCESSING..." : "EXECUTE"}</button>
+                </div>
+              </div>
+              {history.map((h, i) => (
+                <div className="card animate" key={i}>
+                  <div className="q-bubble">FIELD REPORT: {h.q.substring(0, 40)}...</div>
+                  <div className="content">{h.a}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="card animate">
+              <span className="label">Engine Activation</span>
+              <p style={{fontSize: '13px', marginBottom: '12px', color: 'var(--muted)'}}>Paste your Gemini API Key here. It stays in your phone's memory.</p>
+              <input type="password" value={key} onChange={e => {setKey(e.target.value); localStorage.setItem('alluz_key', e.target.value)}} style={{width:'100%', padding:'12px', border:'1px solid var(--border)', borderRadius:'8px'}} placeholder="Paste Gemini Key..." />
+              <button style={{marginTop: '20px', fontSize: '9px', border: 'none', background: 'none', color: 'red', fontWeight: 700}} onClick={() => {if(confirm("Wipe Memory?")) setHistory([])}}>RESET ALL DATA</button>
+            </div>
+          )}
+        </div>
+      );
+    }
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
