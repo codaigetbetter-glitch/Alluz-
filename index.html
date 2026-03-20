@@ -329,10 +329,17 @@ let activeTab = "ask";
 // ── AI CALL ───────────────────────────────────────────────────────────────────
 
 async function askAlluz(query) {
+  const apiKey = localStorage.getItem("alluz_key");
+  if (!apiKey) throw new Error("No API key set. Go to ⚙️ Profile and add your Anthropic API key.");
   history.push({ role: "user", content: query });
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": apiKey,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-allow-any-origin": "true",
+    },
     body: JSON.stringify({
       model: "claude-sonnet-4-20250514",
       max_tokens: 1500,
@@ -340,6 +347,10 @@ async function askAlluz(query) {
       messages: history
     })
   });
+  if (!res.ok) {
+    const err = await res.json().catch(()=>({}));
+    throw new Error(err.error?.message || "API error "+res.status);
+  }
   const data = await res.json();
   const raw = data.content?.find(b => b.type === "text")?.text || '{"type":"answer","title":"Error","text":"Something went wrong.","tips":[]}';
   let parsed;
@@ -660,7 +671,7 @@ function buildContentTab(c) {
     const style2 = profile ? profile.style : "streetwear";
     const prompt = `Create a 4-week social media content calendar for a ${niche} clothing brand with ${style2} aesthetic. Platform: ${selPlatform}. Stage: ${stageS.value}. Goal: ${goalS.value}. Respond ONLY with raw JSON: {"weeks":[{"week":1,"theme":"","days":[{"day":"Mon","platform":"","type":"","hook":"","what":"","caption":""}]}]} — 3 posts per week Mon/Wed/Fri. Make hooks scroll-stopping. Captions ready to copy-paste.`;
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,messages:[{role:"user",content:prompt}]})});
+      const res = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":localStorage.getItem("alluz_key")||"","anthropic-version":"2023-06-01","anthropic-dangerous-allow-any-origin":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:2000,messages:[{role:"user",content:prompt}]})});
       const data = await res.json();
       const raw = data.content?.find(b=>b.type==="text")?.text||"{}";
       const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim());
@@ -713,7 +724,7 @@ function buildCheckerTab(c) {
     const aiPrompt = `Clothing brand name: "${name}". Analyse: trademark risk vs known brands, Instagram @${clean} availability, overall verdict. JSON only: {"trademark_risk":"low|medium|high","trademark_note":"","instagram_likely":"available|taken|unknown","instagram_note":"","verdict":"safe|caution|risky","verdict_text":"","alternatives":["","","","",""]}`;
     let aiData = null;
     try {
-      const r = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:500,messages:[{role:"user",content:aiPrompt}]})});
+      const r = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":localStorage.getItem("alluz_key")||"","anthropic-version":"2023-06-01","anthropic-dangerous-allow-any-origin":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:500,messages:[{role:"user",content:aiPrompt}]})});
       const d = await r.json(); const raw=d.content?.find(b=>b.type==="text")?.text||"{}";
       aiData = JSON.parse(raw.replace(/```json|```/g,"").trim());
     } catch{}
@@ -822,7 +833,7 @@ function buildCountdownTab(c) {
     const prompt = `Create a ${weeksLeft}-week pre-launch plan for a ${niche} clothing brand launching on ${launchDate}. ${weeksLeft} weeks to go. Respond ONLY with raw JSON: {"weeks":[{"week":1,"theme":"","tasks":["task1","task2","task3"]}]} — 3 tasks per week, specific and actionable.`;
 
     try {
-      const res = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,messages:[{role:"user",content:prompt}]})});
+      const res = await fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"Content-Type":"application/json","x-api-key":localStorage.getItem("alluz_key")||"","anthropic-version":"2023-06-01","anthropic-dangerous-allow-any-origin":"true"},body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1500,messages:[{role:"user",content:prompt}]})});
       const data = await res.json();
       const raw = data.content?.find(b=>b.type==="text")?.text||"{}";
       const parsed = JSON.parse(raw.replace(/```json|```/g,"").trim());
@@ -886,6 +897,32 @@ function buildProfileTab(c) {
 
   setup.appendChild(el("div","tool-title","⚙️ Your Brand Profile"));
   setup.appendChild(el("div","tool-sub","The more Alluz knows about you, the better every answer gets. Be specific — this is your private context."));
+
+  // API Key section
+  const keySection = el("div","");
+  keySection.style.cssText = "background:var(--blue-dim);border:1px solid #38b6ff33;border-radius:10px;padding:14px;margin-bottom:16px;";
+  keySection.appendChild(el("div","tool-label","🔑 Anthropic API Key"));
+  const keyNote = el("div",""); keyNote.style.cssText="font-size:11px;color:var(--muted);margin-bottom:8px;line-height:1.5;";
+  keyNote.textContent = "Get a free key at console.anthropic.com → API Keys. Stays on your device only, never uploaded anywhere.";
+  keySection.appendChild(keyNote);
+  const keyRow = el("div",""); keyRow.style.cssText="display:flex;gap:8px;";
+  const keyInput = el("input","tool-input"); keyInput.type="password"; keyInput.placeholder="sk-ant-api03-...";
+  const savedKey = localStorage.getItem("alluz_key")||"";
+  if (savedKey) keyInput.value = savedKey;
+  const saveKeyBtn = el("button",""); saveKeyBtn.textContent="SAVE KEY";
+  saveKeyBtn.style.cssText="background:var(--black);color:#fff;border:none;border-radius:8px;padding:11px 16px;font-weight:800;font-size:12px;cursor:pointer;white-space:nowrap;font-family:inherit;";
+  saveKeyBtn.onclick = () => {
+    const k = keyInput.value.trim();
+    if (k) { localStorage.setItem("alluz_key", k); saveKeyBtn.textContent="SAVED ✓"; setTimeout(()=>saveKeyBtn.textContent="SAVE KEY",2000); }
+  };
+  keyRow.appendChild(keyInput); keyRow.appendChild(saveKeyBtn);
+  keySection.appendChild(keyRow);
+  if (savedKey) {
+    const keyStatus = el("div",""); keyStatus.style.cssText="font-size:11px;color:#16a34a;margin-top:6px;font-weight:700;";
+    keyStatus.textContent = "✓ API key saved — Alluz is ready";
+    keySection.appendChild(keyStatus);
+  }
+  setup.appendChild(keySection);
 
   // Stage selector — cards not dropdown
   const stageLabel = el("label","tool-label","Where are you right now?");
@@ -1020,13 +1057,19 @@ function buildOnboarding(c) {
   ["Just an idea — still planning","Just starting out — small budget","Launched, early stage — building sales","Growing brand — scaling up","Established but stuck — need a breakthrough","Scaling fast — next level"].forEach(o=>i4.appendChild(el("option","",o)));
   f4.appendChild(i4); fields2.appendChild(f4);
 
+  const f5=el("div","ob-field");
+  f5.appendChild(el("label","","Anthropic API Key"));
+  const i5=el("input","ob-input"); i5.type="password"; i5.id="ob-api-key"; i5.placeholder="sk-ant-api03-... (get free at console.anthropic.com)";
+  const savedK = localStorage.getItem("alluz_key")||""; if(savedK) i5.value=savedK;
+  f5.appendChild(i5); fields2.appendChild(f5);
   body.appendChild(fields2);
 
   const startBtn = el("button","ob-btn","START BUILDING MY BRAND →");
   startBtn.onclick = () => {
+    const k = document.getElementById("ob-api-key").value.trim();
+    if (k) localStorage.setItem("alluz_key", k);
     profile={niche:i1.value||"clothing brand",budget:i2.value||"500",style:i3.value||"streetwear",stage:i4.value};
     localStorage.setItem("alluz_profile",JSON.stringify(profile));
-    const content = document.getElementById("tab-content");
     switchTab("ask");
   };
   body.appendChild(startBtn);
